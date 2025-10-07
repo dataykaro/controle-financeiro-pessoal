@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minhas Finanças Local</title>
+    <!-- Carrega Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8;
+        }
+        /* Otimização para barras de rolagem (simula ambiente nativo) */
+        .scroll-container::-webkit-scrollbar { display: none; }
+        .scroll-container { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Estilo para garantir que o contêiner principal se pareça com uma tela de app */
+        #app {
+            max-width: 600px; 
+            margin: 0 auto;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding-bottom: 5rem; /* Espaço para a navbar */
+        }
+        .tab-content {
+            flex-grow: 1;
+        }
+        .nav-button.active {
+            color: #2563eb; /* blue-600 */
+            border-top: 2px solid #2563eb;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app" class="p-4 sm:p-6">
+    <!-- Título e Status Local -->
+    <header class="mb-6 pt-2">
+        <h1 class="text-3xl font-extrabold text-gray-800 text-center mb-1">💸 Finanças (Local)</h1>
+        <p class="text-xs text-center text-red-500 font-semibold" title="Os dados são salvos apenas neste dispositivo.">
+            ⚠️ Dados Salvos Apenas Neste Aparelho (localStorage)
+        </p>
+    </header>
+
+    <!-- Conteúdo da Aba (Home ou Metas) -->
+    <div id="home-tab" class="tab-content">
+        
+        <!-- Seletor de Mês -->
+        <div class="flex justify-between items-center bg-white p-3 rounded-xl shadow-md mb-6 sticky top-0 z-10 border-b border-gray-100">
+            <button id="prev-month-btn" class="p-2 text-gray-600 hover:text-blue-600 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" /></svg>
+            </button>
+            <span id="current-month-display" class="text-lg font-bold text-gray-800">Mês Atual</span>
+            <button id="next-month-btn" class="p-2 text-gray-600 hover:text-blue-600 transition">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7" /></svg>
+            </button>
+        </div>
+
+        <!-- Seção de Balanço Otimizada para Mobile -->
+        <div id="balance-summary" class="grid grid-cols-2 gap-3 md:gap-4 mb-6">
+            
+            <!-- Card de Balanço Final -->
+            <div class="balance-card bg-white p-3 rounded-xl shadow-2xl border-b-4 border-blue-500 col-span-2">
+                <p class="text-lg font-medium text-gray-500">Balanço do Mês</p>
+                <p id="final-balance" class="text-3xl font-extrabold text-blue-600 mt-1 truncate">R$ 0,00</p>
+                <p id="balance-percentage" class="text-sm mt-1 font-semibold text-gray-600">0% economizado</p>
+            </div>
+
+            <!-- Card de Receitas -->
+            <div class="balance-card bg-white p-3 rounded-xl shadow-lg border-b-4 border-green-500">
+                <p class="text-sm font-medium text-gray-500">Receitas</p>
+                <p id="total-income" class="text-xl font-bold text-green-600 mt-1 truncate">R$ 0,00</p>
+            </div>
+
+            <!-- Card de Despesas -->
+            <div class="balance-card bg-white p-3 rounded-xl shadow-lg border-b-4 border-red-500">
+                <p class="text-sm font-medium text-gray-500">Despesas</p>
+                <p id="total-expense" class="text-xl font-bold text-red-600 mt-1 truncate">R$ 0,00</p>
+            </div>
+        </div>
+        
+        <!-- Controles de Backup -->
+        <div class="bg-gray-100 p-3 rounded-xl mb-6 shadow-inner">
+            <h3 class="text-sm font-bold mb-2 text-gray-600">Ferramentas de Backup Local</h3>
+            <div class="flex space-x-2">
+                <button id="export-data-btn" class="flex-1 py-2 rounded-lg bg-blue-500 text-white font-semibold text-sm hover:bg-blue-600 transition">
+                    Exportar Dados (JSON)
+                </button>
+                <label for="import-file" class="flex-1 py-2 text-center rounded-lg bg-yellow-500 text-gray-800 font-semibold text-sm hover:bg-yellow-600 transition cursor-pointer">
+                    Importar Dados
+                </label>
+                <input type="file" id="import-file" accept=".json" class="hidden">
+            </div>
+        </div>
+
+        <!-- Lista de Transações -->
+        <div class="flex-grow">
+            <h2 class="text-lg font-bold mb-3 text-gray-700">Histórico de Transações</h2>
+            <div id="transactions-list" class="space-y-3 scroll-container pb-4">
+                <p id="loading-message" class="text-center text-gray-500">Carregando dados locais...</p>
+                <!-- Transações serão injetadas aqui -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Conteúdo da Aba de Metas -->
+    <div id="goals-tab" class="tab-content hidden">
+        <h2 class="text-2xl font-bold mb-5 text-gray-700 text-center">🏆 Minhas Metas de Poupança</h2>
+
+        <!-- Formulário Adicionar Nova Meta -->
+        <div class="bg-white p-4 rounded-xl shadow-md mb-6">
+            <h3 class="text-lg font-semibold mb-3 text-gray-700">Adicionar Nova Meta</h3>
+            <form id="goal-form" class="space-y-3">
+                <input type="text" id="goal-name" required placeholder="Nome da Meta (Ex: Carro Novo)" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <input type="number" step="0.01" id="goal-target" required placeholder="Valor Total Necessário (R$)" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <button type="submit" id="add-goal-btn" class="w-full py-3 rounded-lg font-bold text-white bg-green-600 hover:bg-green-700 transition duration-300 shadow-md">
+                    Criar Meta
+                </button>
+            </form>
+        </div>
+
+        <!-- Lista de Metas -->
+        <div id="goals-list" class="space-y-4">
+            <p id="no-goals-message" class="text-center text-gray-500">Nenhuma meta definida. Comece a planejar!</p>
+            <!-- Metas serão injetadas aqui -->
+        </div>
+    </div>
+    
+    <!-- Formulário de Nova Transação (Fixo na parte inferior) -->
+    <div id="new-transaction-area" class="bg-white p-4 rounded-t-2xl shadow-2xl fixed bottom-16 left-0 right-0 max-w-[600px] mx-auto border-t border-gray-100 z-10">
+        <h2 class="text-sm font-semibold mb-3 text-gray-700">Adicionar Transação Rápida</h2>
+        <form id="transaction-form" class="space-y-2">
+            
+            <!-- Descrição e Valor -->
+            <div class="flex gap-2">
+                <input type="text" id="description" required placeholder="Descrição" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+                <input type="number" step="0.01" id="amount" required placeholder="Valor (R$)" class="w-1/3 p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm min-w-[80px]">
+            </div>
+
+            <!-- Tipo, Categoria e Botão -->
+            <div class="flex gap-2">
+                <select id="type" required class="w-1/3 p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <option value="" disabled selected>Tipo</option>
+                    <option value="income">Receita (+)</option>
+                    <option value="expense">Despesa (-)</option>
+                </select>
+
+                <select id="category" class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
+                    <option value="" disabled selected>Categoria</option>
+                    <!-- Opções de categoria serão preenchidas via JS -->
+                </select>
+
+                <!-- Botão de Envio (Tamanho Grande para Toque) -->
+                <button type="submit" id="submit-btn" class="w-1/5 p-2 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-700 transition duration-300 shadow-md flex items-center justify-center min-w-[50px]">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Barra de Navegação Inferior (Abas) -->
+    <nav class="fixed bottom-0 left-0 right-0 max-w-[600px] mx-auto bg-white border-t border-gray-200 shadow-2xl z-20 h-16">
+        <div class="flex justify-around h-full">
+            <button id="nav-home" class="nav-button flex-1 flex flex-col items-center justify-center text-gray-500 active">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0h6m-6 0h-2M9 21h6" /></svg>
+                <span class="text-xs mt-1">Home</span>
+            </button>
+            <button id="nav-goals" class="nav-button flex-1 flex flex-col items-center justify-center text-gray-500">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.27a11.97 11.97 0 010 8.548.973.973 0 01-.027.027c-1.577 1.879-3.411 3.518-5.462 4.887l-1.346.81a1 1 0 01-1.096 0l-1.346-.81c-2.051-1.369-3.885-3.008-5.462-4.887a.973.973 0 01-.027-.027 11.97 11.97 0 010-8.548.973.973 0 01.027-.027c1.577-1.879 3.411-3.518 5.462-4.887l1.346-.81a1 1 0 011.096 0l1.346.81c2.051 1.369 3.885 3.008 5.462 4.887a.973.973 0 01.027.027z" /></svg>
+                <span class="text-xs mt-1">Metas</span>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Modal para confirmação (substitui alert/confirm) -->
+    <div id="custom-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center p-4 z-50">
+        <div class="bg-white p-6 rounded-xl shadow-2xl max-w-xs w-full">
+            <p id="modal-message" class="text-gray-700 mb-5 text-center"></p>
+            <div class="flex justify-around space-x-3">
+                <button id="modal-cancel" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition flex-grow">Cancelar</button>
+                <button id="modal-confirm" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition flex-grow">Deletar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast de Sucesso (Feedback Visual Mobile) -->
+    <div id="success-toast" class="hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition duration-300">
+        Sucesso!
+    </div>
+
+</div>
+
+<script>
+    // CHAVE DE ARMAZENAMENTO LOCAL
+    const STORAGE_KEY = 'finance_app_data_ykaro';
+
+    // Variável de estado para o mês atual (Year-Month-Day)
+    let currentDisplayDate = new Date(); 
+    
+    const MONTH_NAMES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
+    const categories = [ "Moradia", "Alimentação", "Lazer", "Transporte", "Streamer", "Outros" ];
+
+    // Elementos DOM (Mantidos iguais)
+    const typeSelect = document.getElementById('type');
+    const categorySelect = document.getElementById('category');
+    const transactionsList = document.getElementById('transactions-list');
+    const totalIncomeEl = document.getElementById('total-income');
+    const totalExpenseEl = document.getElementById('total-expense');
+    const finalBalanceEl = document.getElementById('final-balance');
+    const balancePercentageEl = document.getElementById('balance-percentage');
+    const loadingMessage = document.getElementById('loading-message');
+
+    // Elementos de Navegação e Mês
+    const homeTabEl = document.getElementById('home-tab');
+    const goalsTabEl = document.getElementById('goals-tab');
+    const navHomeBtn = document.getElementById('nav-home');
+    const navGoalsBtn = document.getElementById('nav-goals');
+    const prevMonthBtn = document.getElementById('prev-month-btn');
+    const nextMonthBtn = document.getElementById('next-month-btn');
+    const currentMonthDisplay = document.getElementById('current-month-display');
+
+    // Elementos de Metas
+    const goalForm = document.getElementById('goal-form');
+    const goalsList = document.getElementById('goals-list');
+    const noGoalsMessage = document.getElementById('no-goals-message');
+    const submitBtn = document.getElementById('submit-btn');
+    
+    // Elementos de Backup
+    const exportDataBtn = document.getElementById('export-data-btn');
+    const importFile = document.getElementById('import-file');
+
+    // Cache de Dados
+    let allData = { transactions: [], goals: [] };
+
+    // --- 1. FUNÇÕES DE ARMAZENAMENTO E BACKUP LOCAL ---
+
+    // Carrega dados do localStorage
+    const loadData = () => {
+        try {
+            const dataString = localStorage.getItem(STORAGE_KEY);
+            if (dataString) {
+                const loadedData = JSON.parse(dataString);
+                // Garantir que a estrutura exista
+                allData.transactions = loadedData.transactions || [];
+                allData.goals = loadedData.goals || [];
+            }
+        } catch (error) {
+            console.error("Erro ao carregar dados locais:", error);
+        }
+    };
+
+    // Salva o cache de dados no localStorage
+    const saveData = () => {
+        try {
+            // Garante que o timestamp seja string para serialização JSON
+            const dataToSave = {
+                transactions: allData.transactions.map(t => ({
+                    ...t,
+                    // Garante que é uma string, caso o usuário tenha importado
+                    timestamp: (t.timestamp instanceof Date) ? t.timestamp.toISOString() : t.timestamp 
+                })),
+                goals: allData.goals
+            };
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+            // Após salvar, atualiza a UI
+            filterAndRenderTransactions();
+            renderGoals(allData.goals); 
+        } catch (error) {
+            console.error("Erro ao salvar dados locais:", error);
+            showCustomModal("Erro ao salvar dados. Seu armazenamento pode estar cheio.", null, true);
+        }
+    };
+
+    // Exporta os dados para um arquivo JSON
+    const exportData = () => {
+        // Garantir que os dados estejam na memória antes de exportar
+        loadData(); 
+        const filename = `backup_financas_local_${new Date().toISOString().slice(0, 10)}.json`;
+        
+        // Converte o objeto de dados em uma string formatada (legível)
+        const dataJson = JSON.stringify(allData, null, 2); 
+        
+        const blob = new Blob([dataJson], { type: 'application/json' });
+        
+        // Cria um link temporário para iniciar o download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showToast('Dados exportados com sucesso!');
+    };
+
+    // Importa dados de um arquivo JSON
+    const importData = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const importedData = JSON.parse(e.target.result);
+
+                // Validação básica para garantir a estrutura correta
+                if (!importedData.transactions || !importedData.goals) {
+                    throw new Error("Estrutura do arquivo JSON inválida.");
+                }
+
+                // Confirmar antes de sobrescrever
+                showCustomModal('Atenção! Importar dados irá substituir TODOS os seus dados atuais. Continuar?', () => {
+                    allData.transactions = importedData.transactions;
+                    allData.goals = importedData.goals;
+                    
+                    saveData(); // Salva os novos dados no localStorage
+                    showToast('Dados importados e restaurados com sucesso!');
+                });
+
+            } catch (error) {
+                console.error("Erro ao importar dados:", error);
+                showCustomModal(`Erro ao importar: ${error.message || 'Formato de arquivo inválido.'}`, null, true);
+            }
+        };
+        reader.readAsText(file);
+        // Limpar o input para permitir nova importação
+        event.target.value = null; 
+    };
+    
+    // --- 2. FUNÇÕES UTILITÁRIAS E DE UI ---
+
+    const formatCurrency = (value) => {
+        return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+    };
+
+    const showToast = (message) => {
+        const toast = document.getElementById('success-toast');
+        toast.textContent = message;
+        toast.classList.remove('hidden');
+        setTimeout(() => {
+            toast.classList.add('hidden');
+        }, 3000);
+    };
+
+    const populateCategories = () => {
+        const defaultOption = categorySelect.querySelector('option[disabled]');
+        while (categorySelect.options.length > 1) { categorySelect.remove(1); }
+        
+        categories.forEach(category => {
+            const option = document.createElement('option');
+            option.value = category;
+            option.textContent = category;
+            categorySelect.appendChild(option);
+        });
+        
+        typeSelect.addEventListener('change', () => {
+            if (typeSelect.value === 'expense') {
+                categorySelect.setAttribute('required', 'required');
+                defaultOption.textContent = "Categoria (Obrig.)";
+            } else {
+                categorySelect.removeAttribute('required');
+                categorySelect.value = ""; 
+                defaultOption.textContent = "Categoria";
+            }
+        });
+        categorySelect.removeAttribute('required');
+    };
+
+    // --- 3. LÓGICA DE NAVEGAÇÃO E MÊS ---
+
+    // Atualiza o display do mês
+    const updateMonthDisplay = () => {
+        const month = currentDisplayDate.getMonth();
+        const year = currentDisplayDate.getFullYear();
+        currentMonthDisplay.textContent = `${MONTH_NAMES[month]} de ${year}`;
+        filterAndRenderTransactions();
+    };
+
+    // Muda o mês
+    const changeMonth = (delta) => {
+        currentDisplayDate.setMonth(currentDisplayDate.getMonth() + delta);
+        updateMonthDisplay();
+    };
+
+    // Filtra as transações do cache pelo mês selecionado
+    const filterTransactionsByMonth = () => {
+        const selectedMonth = currentDisplayDate.getMonth();
+        const selectedYear = currentDisplayDate.getFullYear();
+
+        return allData.transactions.filter(t => {
+            // Converte a string ISO de volta para objeto Date
+            const date = new Date(t.timestamp); 
+            return date.getMonth() === selectedMonth && date.getFullYear() === selectedYear;
+        });
+    };
+    
+    // --- 4. RENDERIZAÇÃO HOME ---
+    
+    // Cálculo e renderização do balanço e porcentagem
+    const calculateBalance = (transactions) => {
+        let totalIncome = 0;
+        let totalExpense = 0;
+
+        transactions.forEach(t => {
+            const amount = parseFloat(t.amount);
+            if (t.type === 'income') {
+                totalIncome += amount;
+            } else if (t.type === 'expense') {
+                totalExpense += amount;
+            }
+        });
+
+        const finalBalance = totalIncome - totalExpense;
+        
+        // Cálculo Percentual
+        let percentageText = "0% - Sem receitas";
+        if (totalIncome > 0) {
+            const percentage = (finalBalance / totalIncome) * 100;
+            const absolutePercentage = Math.abs(percentage).toFixed(1);
+
+            if (finalBalance >= 0) {
+                percentageText = `${absolutePercentage}% economizado`;
+            } else {
+                percentageText = `${absolutePercentage}% gasto a mais (dívida)`;
+            }
+        }
+
+        totalIncomeEl.textContent = formatCurrency(totalIncome);
+        totalExpenseEl.textContent = formatCurrency(totalExpense);
+        finalBalanceEl.textContent = formatCurrency(finalBalance);
+        balancePercentageEl.textContent = percentageText;
+        
+        // Atualiza a cor do balanço final
+        finalBalanceEl.classList.remove('text-green-600', 'text-red-600', 'text-blue-600');
+        if (finalBalance >= 0) { 
+            finalBalanceEl.classList.add(finalBalance > 0 ? 'text-green-600' : 'text-blue-600');
+        } else {
+            finalBalanceEl.classList.add('text-red-600');
+        }
+    };
+
+    // Renderiza a lista de transações filtradas
+    const filterAndRenderTransactions = () => {
+        const filteredTransactions = filterTransactionsByMonth();
+        
+        // Ordena por data (mais recente primeiro)
+        filteredTransactions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+        transactionsList.innerHTML = '';
+        loadingMessage.style.display = 'none';
+
+        if (filteredTransactions.length === 0) {
+            transactionsList.innerHTML = '<p class="text-center text-gray-500 py-4">Nenhuma transação registrada neste mês.</p>';
+        }
+
+        filteredTransactions.forEach(t => {
+            const isIncome = t.type === 'income';
+            const colorClass = isIncome ? 'text-green-600' : 'text-red-600';
+            const icon = isIncome ? 'M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18' : 'M19.5 13.5L12 21m0 0l-7.5-7.5M12 21V3';
+            const categoryText = isIncome ? 'Receita' : t.category || 'Outros';
+            // Converte a string ISO para objeto Date e formata
+            const date = new Date(t.timestamp).toLocaleDateString('pt-BR');
+
+            const item = document.createElement('div');
+            item.className = `flex justify-between items-center p-3 bg-white rounded-xl shadow-sm border-l-4 ${isIncome ? 'border-green-400' : 'border-red-400'}`;
+            item.innerHTML = `
+                <div class="flex items-center flex-grow min-w-0 pr-2">
+                    <div class="p-2 mr-3 rounded-full ${isIncome ? 'bg-green-100' : 'bg-red-100'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ${colorClass}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="${icon}" />
+                        </svg>
+                    </div>
+                    
+                    <div class="flex-grow min-w-0">
+                        <p class="font-semibold text-gray-800 truncate">${t.description}</p>
+                        <p class="text-xs text-gray-500 mt-0.5 font-medium">${categoryText} &bull; ${date}</p>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-3 ml-4">
+                    <p class="font-bold text-base ${colorClass} whitespace-nowrap text-right">
+                        ${formatCurrency(t.amount)}
+                    </p>
+                    <button class="text-gray-400 hover:text-red-500 transition-colors delete-btn p-1" data-id="${t.id}" title="Excluir Transação">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+            `;
+            transactionsList.appendChild(item);
+        });
+
+        calculateBalance(filteredTransactions);
+
+        document.querySelectorAll('.delete-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const docId = e.currentTarget.getAttribute('data-id');
+                showCustomModal('Tem certeza que deseja deletar esta transação?', () => {
+                    deleteTransaction(docId);
+                });
+            });
+        });
+    };
+    
+    // --- 5. RENDERIZAÇÃO METAS ---
+
+    // Renderiza a lista de metas
+    const renderGoals = (goals) => {
+        goalsList.innerHTML = '';
+        if (goals.length === 0) {
+            noGoalsMessage.style.display = 'block';
+            return;
+        }
+        noGoalsMessage.style.display = 'none';
+
+        goals.forEach(goal => {
+            const target = parseFloat(goal.targetAmount);
+            const saved = parseFloat(goal.savedAmount || 0);
+            const percentage = target > 0 ? Math.min(100, (saved / target) * 100) : 0;
+            const progressBarColor = percentage >= 100 ? 'bg-blue-600' : 'bg-yellow-500';
+
+            const item = document.createElement('div');
+            item.className = `bg-white p-4 rounded-xl shadow-lg border-l-4 ${percentage >= 100 ? 'border-blue-600' : 'border-yellow-500'}`;
+            item.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <h4 class="text-lg font-bold text-gray-800">${goal.name}</h4>
+                    <button class="text-gray-400 hover:text-red-500 delete-goal-btn p-1" data-id="${goal.id}" title="Deletar Meta">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                             <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </div>
+
+                <p class="text-sm text-gray-600 mb-1">Meta: ${formatCurrency(target)}</p>
+                <p class="text-xl font-extrabold ${percentage >= 100 ? 'text-blue-600' : 'text-yellow-600'} mb-3">
+                    Economizado: ${formatCurrency(saved)}
+                </p>
+
+                <!-- Barra de Progresso -->
+                <div class="w-full bg-gray-200 rounded-full h-3 mb-4">
+                    <div class="${progressBarColor} h-3 rounded-full text-xs text-white text-center" style="width: ${percentage}%"></div>
+                </div>
+                <p class="text-sm font-semibold text-gray-700 text-center">${percentage.toFixed(1)}% Completo</p>
+
+                <!-- Campo de Aporte Manual -->
+                <form class="flex mt-4 gap-2 add-contribution-form" data-id="${goal.id}">
+                    <input type="number" step="0.01" required placeholder="Novo Aporte (R$)" class="flex-grow p-2 border border-gray-300 rounded-lg text-sm contribution-input">
+                    <button type="submit" class="p-2 rounded-lg text-white bg-blue-500 hover:bg-blue-600 transition text-sm font-bold">Aportar</button>
+                </form>
+            `;
+            goalsList.appendChild(item);
+        });
+
+        // Adiciona listeners para deletar metas
+        document.querySelectorAll('.delete-goal-btn').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const docId = e.currentTarget.getAttribute('data-id');
+                showCustomModal('Deletar a meta? Isso não afeta suas transações passadas.', () => {
+                    deleteGoal(docId);
+                });
+            });
+        });
+        
+        // Adiciona listeners para aporte
+        document.querySelectorAll('.add-contribution-form').forEach(formEl => {
+            formEl.addEventListener('submit', handleGoalContribution);
+        });
+    };
+
+
+    // --- 6. OPERAÇÕES DE DADOS LOCAIS ---
+
+    // Adiciona uma nova transação
+    const addTransaction = async (data) => {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `<svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+        
+        try {
+            const newTransaction = {
+                id: crypto.randomUUID(), // Gera um ID único local
+                description: data.description,
+                amount: parseFloat(data.amount), 
+                type: data.type,
+                category: data.category || (data.type === 'income' ? 'Receita' : 'Outros'),
+                timestamp: new Date().toISOString() // Salva como string ISO
+            };
+
+            allData.transactions.push(newTransaction);
+            saveData(); // Salva no localStorage
+            
+            document.getElementById('transaction-form').reset();
+            categorySelect.value = "";
+            typeSelect.value = "";
+            typeSelect.dispatchEvent(new Event('change')); 
+            showToast('Transação adicionada!');
+
+        } catch (error) {
+            console.error("Erro ao adicionar transação:", error);
+            showCustomModal('Erro ao salvar transação localmente.', null, true);
+        } finally {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd" /></svg>`;
+        }
+    };
+
+    // Deleta uma transação
+    const deleteTransaction = async (id) => {
+        try {
+            const initialLength = allData.transactions.length;
+            allData.transactions = allData.transactions.filter(t => t.id !== id);
+            
+            if (allData.transactions.length < initialLength) {
+                saveData();
+                showToast('Transação excluída.');
+            }
+        } catch (error) {
+            console.error("Erro ao deletar transação:", error);
+            showCustomModal('Erro ao deletar transação localmente.', null, true);
+        }
+    };
+
+    // Adiciona uma nova meta
+    const addGoal = async (data) => {
+        document.getElementById('add-goal-btn').disabled = true;
+        
+        try {
+            const newGoal = {
+                id: crypto.randomUUID(),
+                name: data.name,
+                targetAmount: parseFloat(data.targetAmount),
+                savedAmount: 0, 
+                timestamp: new Date().toISOString()
+            };
+            allData.goals.push(newGoal);
+            saveData();
+            goalForm.reset();
+            showToast('Meta criada com sucesso!');
+        } catch (error) {
+            console.error("Erro ao adicionar meta:", error);
+            showCustomModal('Erro ao salvar meta localmente.', null, true);
+        } finally {
+            document.getElementById('add-goal-btn').disabled = false;
+        }
+    };
+
+    // Lida com o aporte em uma meta
+    const handleGoalContribution = async (e) => {
+        e.preventDefault();
+        
+        const goalId = e.currentTarget.getAttribute('data-id');
+        const inputEl = e.currentTarget.querySelector('.contribution-input');
+        const contribution = parseFloat(inputEl.value);
+
+        if (contribution <= 0 || isNaN(contribution)) {
+            return showCustomModal('Insira um valor positivo para o aporte.', null, true);
+        }
+
+        const goalIndex = allData.goals.findIndex(g => g.id === goalId);
+        if (goalIndex === -1) {
+            return showCustomModal('Meta não encontrada.', null, true);
+        }
+
+        try {
+            allData.goals[goalIndex].savedAmount += contribution;
+            saveData(); 
+
+            inputEl.value = ''; // Limpa o campo
+            showToast(`Aporte de ${formatCurrency(contribution)} adicionado à meta!`);
+
+        } catch (error) {
+            console.error("Erro ao adicionar aporte:", error);
+            showCustomModal('Erro ao salvar aporte localmente.', null, true);
+        }
+    };
+
+    // Deleta uma meta
+    const deleteGoal = async (id) => {
+        try {
+            const initialLength = allData.goals.length;
+            allData.goals = allData.goals.filter(g => g.id !== id);
+            
+            if (allData.goals.length < initialLength) {
+                saveData();
+                showToast('Meta deletada.');
+            }
+        } catch (error) {
+            console.error("Erro ao deletar meta:", error);
+            showCustomModal('Erro ao deletar meta localmente.', null, true);
+        }
+    };
+    
+    // --- 7. EVENTOS GERAIS E INICIALIZAÇÃO ---
+
+    // Modal
+    const modal = document.getElementById('custom-modal');
+    const modalMessage = document.getElementById('modal-message');
+    const modalConfirm = document.getElementById('modal-confirm');
+    const modalCancel = document.getElementById('modal-cancel');
+
+    function showCustomModal(message, onConfirm, isAlert = false) {
+        modalMessage.textContent = message;
+        modal.classList.remove('hidden');
+
+        modalConfirm.onclick = null;
+        modalCancel.onclick = null;
+
+        if (isAlert) {
+            modalConfirm.style.display = 'none';
+            modalCancel.textContent = 'OK';
+            modalCancel.onclick = () => modal.classList.add('hidden');
+        } else {
+            modalConfirm.style.display = 'inline-block';
+            modalCancel.textContent = 'Cancelar';
+            
+            modalConfirm.onclick = () => {
+                modal.classList.add('hidden');
+                if (onConfirm) onConfirm();
+            };
+            modalCancel.onclick = () => modal.classList.add('hidden');
+        }
+    }
+
+    // Navegação por Abas
+    function switchTab(tabId) {
+        const tabs = [homeTabEl, goalsTabEl];
+        const buttons = [navHomeBtn, navGoalsBtn];
+
+        tabs.forEach(tab => tab.classList.add('hidden'));
+        buttons.forEach(btn => btn.classList.remove('active', 'text-blue-600'));
+
+        if (tabId === 'home') {
+            homeTabEl.classList.remove('hidden');
+            navHomeBtn.classList.add('active', 'text-blue-600');
+        } else if (tabId === 'goals') {
+            goalsTabEl.classList.remove('hidden');
+            navGoalsBtn.classList.add('active', 'text-blue-600');
+        }
+    }
+    navHomeBtn.addEventListener('click', () => switchTab('home'));
+    navGoalsBtn.addEventListener('click', () => switchTab('goals'));
+
+
+    // Event Listeners Principais
+    document.getElementById('transaction-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        
+        const data = {
+            description: document.getElementById('description').value.trim(),
+            amount: document.getElementById('amount').value.trim(),
+            type: typeSelect.value,
+            category: categorySelect.value,
+        };
+
+        if (data.type === 'expense' && !data.category) {
+            return showCustomModal("Selecione uma categoria para a despesa.", null, true);
+        }
+        if (parseFloat(data.amount) <= 0) {
+            return showCustomModal("O valor deve ser positivo.", null, true);
+        }
+
+        addTransaction(data);
+    });
+
+    goalForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const data = {
+            name: document.getElementById('goal-name').value.trim(),
+            targetAmount: document.getElementById('goal-target').value.trim(),
+        };
+        if (parseFloat(data.targetAmount) <= 0) {
+            return showCustomModal("O valor da meta deve ser positivo.", null, true);
+        }
+        addGoal(data);
+    });
+    
+    // Eventos de Navegação Mensal
+    prevMonthBtn.addEventListener('click', () => changeMonth(-1));
+    nextMonthBtn.addEventListener('click', () => changeMonth(1));
+
+    // Eventos de Backup
+    exportDataBtn.addEventListener('click', exportData);
+    importFile.addEventListener('change', importData);
+    
+    // Inicialização ao carregar a janela
+    window.onload = function() {
+        populateCategories();
+        loadData(); // Carrega dados ao iniciar
+        updateMonthDisplay();
+        renderGoals(allData.goals);
+        switchTab('home'); 
+    }
+</script>
+
+</body>
+</html>
