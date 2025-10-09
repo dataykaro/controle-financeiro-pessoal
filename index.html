@@ -106,12 +106,27 @@
             </div>
         </div>
 
-        <!-- Lista de Transações -->
+        <!-- LISTA DE TRANSAÇÕES SEPARADAS -->
         <div class="flex-grow">
-            <h2 class="text-lg font-bold mb-3 text-gray-700">Histórico de Transações</h2>
-            <div id="transactions-list" class="space-y-3 scroll-container pb-4">
-                <p id="loading-message" class="text-center text-gray-500">Carregando dados locais...</p>
-                <!-- Transações serão injetadas aqui -->
+            <!-- Mensagem de Loading/Vazio -->
+            <p id="loading-message" class="text-center text-gray-500 py-4 hidden">Carregando dados locais...</p>
+
+            <!-- Transações de Receita -->
+            <h2 class="text-lg font-bold mb-3 text-green-700 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3m0 0v3m0-3h3m-3 0H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Receitas do Mês
+            </h2>
+            <div id="income-transactions-list" class="space-y-3 scroll-container pb-6">
+                <!-- Receitas serão injetadas aqui -->
+            </div>
+
+            <!-- Transações de Despesa -->
+            <h2 class="text-lg font-bold mb-3 mt-6 text-red-700 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Despesas do Mês
+            </h2>
+            <div id="expense-transactions-list" class="space-y-3 scroll-container pb-4">
+                <!-- Despesas serão injetadas aqui -->
             </div>
         </div>
     </div>
@@ -202,6 +217,8 @@
                 <input type="number" step="0.01" id="amount" required placeholder="Valor (R$)" class="w-1/2 p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
             </div>
 
+            <!-- CAMPO DE DATA (REMOVIDO) -->
+            
             <select id="category" class="w-full p-3 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 text-sm">
                 <option value="" disabled selected>Categoria</option>
                 <!-- Opções de categoria serão preenchidas via JS -->
@@ -227,7 +244,10 @@
     // Elementos DOM 
     const typeSelect = document.getElementById('type');
     const categorySelect = document.getElementById('category');
-    const transactionsList = document.getElementById('transactions-list');
+    // NOVOS ELEMENTOS PARA SEPARAÇÃO VISUAL
+    const incomeTransactionsList = document.getElementById('income-transactions-list');
+    const expenseTransactionsList = document.getElementById('expense-transactions-list');
+    
     const totalIncomeEl = document.getElementById('total-income');
     const totalExpenseEl = document.getElementById('total-expense');
     const finalBalanceEl = document.getElementById('final-balance');
@@ -267,6 +287,7 @@
 
     // Carrega dados do localStorage
     const loadData = () => {
+        loadingMessage.classList.remove('hidden'); // Mostra a mensagem de loading
         try {
             const dataString = localStorage.getItem(STORAGE_KEY);
             if (dataString) {
@@ -274,23 +295,24 @@
                 // Garantir que a estrutura exista
                 allData.transactions = loadedData.transactions || [];
                 allData.goals = loadedData.goals || [];
+                // Garante que o campo 'date' exista se for um dado antigo
+                allData.transactions.forEach(t => {
+                    if (!t.date && t.timestamp) {
+                        t.date = new Date(t.timestamp).toISOString().split('T')[0];
+                    }
+                });
             }
         } catch (error) {
             console.error("Erro ao carregar dados locais:", error);
-            // Mostrar mensagem de erro, mas continuar com dados vazios
         }
+        loadingMessage.classList.add('hidden'); // Esconde a mensagem de loading
     };
 
     // Salva o cache de dados no localStorage
     const saveData = () => {
         try {
-            // Garante que o timestamp seja string para serialização JSON
             const dataToSave = {
-                transactions: allData.transactions.map(t => ({
-                    ...t,
-                    // Garante que é uma string, caso o usuário tenha importado
-                    timestamp: (t.timestamp instanceof Date) ? t.timestamp.toISOString() : t.timestamp 
-                })),
+                transactions: allData.transactions,
                 goals: allData.goals
             };
             localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
@@ -305,16 +327,12 @@
 
     // Exporta os dados para um arquivo JSON
     const exportData = () => {
-        // Garantir que os dados estejam na memória antes de exportar
         loadData(); 
         const filename = `backup_financas_local_${new Date().toISOString().slice(0, 10)}.json`;
-        
-        // Converte o objeto de dados em uma string formatada (legível)
         const dataJson = JSON.stringify(allData, null, 2); 
         
         const blob = new Blob([dataJson], { type: 'application/json' });
         
-        // Cria um link temporário para iniciar o download
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
@@ -337,17 +355,15 @@
             try {
                 const importedData = JSON.parse(e.target.result);
 
-                // Validação básica para garantir a estrutura correta
                 if (!importedData.transactions || !importedData.goals) {
                     throw new Error("Estrutura do arquivo JSON inválida.");
                 }
 
-                // Confirmar antes de sobrescrever
                 showCustomModal('Atenção! Importar dados irá substituir TODOS os seus dados atuais. Continuar?', () => {
                     allData.transactions = importedData.transactions;
                     allData.goals = importedData.goals;
                     
-                    saveData(); // Salva os novos dados no localStorage
+                    saveData(); 
                     showToast('Dados importados e restaurados com sucesso!');
                 });
 
@@ -357,7 +373,6 @@
             }
         };
         reader.readAsText(file);
-        // Limpar o input para permitir nova importação
         event.target.value = null; 
     };
     
@@ -402,12 +417,13 @@
 
     // Funções do Modal de Transação
     const openTransactionModal = () => {
+        // A data é definida automaticamente pelo mês atual do display.
         transactionModal.classList.remove('hidden');
     };
 
     const closeTransactionModal = () => {
         transactionModal.classList.add('hidden');
-        transactionForm.reset(); // Limpa o formulário ao fechar
+        transactionForm.reset(); 
         categorySelect.value = "";
         typeSelect.value = "";
         typeSelect.dispatchEvent(new Event('change')); 
@@ -435,9 +451,9 @@
         const selectedYear = currentDisplayDate.getFullYear();
 
         return allData.transactions.filter(t => {
-            // Converte a string ISO de volta para objeto Date
-            const date = new Date(t.timestamp); 
-            return date.getMonth() === selectedMonth && date.getFullYear() === selectedYear;
+            // Usa o campo 'date' para filtrar
+            const transactionDate = new Date(t.date); 
+            return transactionDate.getMonth() === selectedMonth && transactionDate.getFullYear() === selectedYear;
         });
     };
     
@@ -459,7 +475,6 @@
 
         const finalBalance = totalIncome - totalExpense;
         
-        // Cálculo Percentual
         let percentageText = "0% - Sem receitas";
         if (totalIncome > 0) {
             const percentage = (finalBalance / totalIncome) * 100;
@@ -477,7 +492,6 @@
         finalBalanceEl.textContent = formatCurrency(finalBalance);
         balancePercentageEl.textContent = percentageText;
         
-        // Atualiza a cor do balanço final
         finalBalanceEl.classList.remove('text-green-600', 'text-red-600', 'text-blue-600');
         if (finalBalance >= 0) { 
             finalBalanceEl.classList.add(finalBalance > 0 ? 'text-green-600' : 'text-blue-600');
@@ -486,59 +500,72 @@
         }
     };
 
-    // Renderiza a lista de transações filtradas
+    // Função auxiliar para criar o item de transação na lista
+    const createTransactionItem = (t) => {
+        const isIncome = t.type === 'income';
+        const colorClass = isIncome ? 'text-green-600' : 'text-red-600';
+        const icon = isIncome ? 'M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18' : 'M19.5 13.5L12 21m0 0l-7.5-7.5M12 21V3';
+        const categoryText = isIncome ? 'Receita' : t.category || 'Outros';
+        
+        // Formata a data de 'YYYY-MM-DD' para 'DD/MM/YYYY'
+        const date = new Date(t.date).toLocaleDateString('pt-BR');
+
+        const item = document.createElement('div');
+        item.className = `flex justify-between items-center p-3 bg-white rounded-xl shadow-sm border-l-4 ${isIncome ? 'border-green-400' : 'border-red-400'}`;
+        item.innerHTML = `
+            <div class="flex items-center flex-grow min-w-0 pr-2">
+                <div class="p-2 mr-3 rounded-full ${isIncome ? 'bg-green-100' : 'bg-red-100'}">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ${colorClass}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="${icon}" />
+                    </svg>
+                </div>
+                
+                <div class="flex-grow min-w-0">
+                    <p class="font-semibold text-gray-800 truncate">${t.description}</p>
+                    <p class="text-xs text-gray-500 mt-0.5 font-medium">${categoryText} &bull; ${date}</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-3 ml-4">
+                <p class="font-bold text-base ${colorClass} whitespace-nowrap text-right">
+                    ${formatCurrency(t.amount)}
+                </p>
+                <button class="text-gray-400 hover:text-red-500 transition-colors delete-btn p-1" data-id="${t.id}" title="Excluir Transação">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" />
+                    </svg>
+                </button>
+            </div>
+        `;
+        return item;
+    };
+
+    // Renderiza a lista de transações filtradas e SEPARADAS
     const filterAndRenderTransactions = () => {
         const filteredTransactions = filterTransactionsByMonth();
         
         // Ordena por data (mais recente primeiro)
-        filteredTransactions.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+        filteredTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-        transactionsList.innerHTML = '';
-        loadingMessage.style.display = 'none';
+        incomeTransactionsList.innerHTML = '';
+        expenseTransactionsList.innerHTML = '';
+        loadingMessage.classList.add('hidden'); // Garante que a mensagem não aparece
 
-        if (filteredTransactions.length === 0) {
-            transactionsList.innerHTML = '<p class="text-center text-gray-500 py-4">Nenhuma transação registrada neste mês.</p>';
+        const incomes = filteredTransactions.filter(t => t.type === 'income');
+        const expenses = filteredTransactions.filter(t => t.type === 'expense');
+
+        if (incomes.length === 0) {
+            incomeTransactionsList.innerHTML = '<p class="text-center text-gray-500 py-2">Nenhuma receita registrada neste mês.</p>';
+        } else {
+            incomes.forEach(t => incomeTransactionsList.appendChild(createTransactionItem(t)));
         }
 
-        filteredTransactions.forEach(t => {
-            const isIncome = t.type === 'income';
-            const colorClass = isIncome ? 'text-green-600' : 'text-red-600';
-            const icon = isIncome ? 'M4.5 10.5L12 3m0 0l7.5 7.5M12 3v18' : 'M19.5 13.5L12 21m0 0l-7.5-7.5M12 21V3';
-            const categoryText = isIncome ? 'Receita' : t.category || 'Outros';
-            // Converte a string ISO para objeto Date e formata
-            const date = new Date(t.timestamp).toLocaleDateString('pt-BR');
-
-            const item = document.createElement('div');
-            item.className = `flex justify-between items-center p-3 bg-white rounded-xl shadow-sm border-l-4 ${isIncome ? 'border-green-400' : 'border-red-400'}`;
-            item.innerHTML = `
-                <div class="flex items-center flex-grow min-w-0 pr-2">
-                    <div class="p-2 mr-3 rounded-full ${isIncome ? 'bg-green-100' : 'bg-red-100'}">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 ${colorClass}" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                          <path stroke-linecap="round" stroke-linejoin="round" d="${icon}" />
-                        </svg>
-                    </div>
-                    
-                    <div class="flex-grow min-w-0">
-                        <p class="font-semibold text-gray-800 truncate">${t.description}</p>
-                        <p class="text-xs text-gray-500 mt-0.5 font-medium">${categoryText} &bull; ${date}</p>
-                    </div>
-                </div>
-                <div class="flex items-center space-x-3 ml-4">
-                    <p class="font-bold text-base ${colorClass} whitespace-nowrap text-right">
-                        ${formatCurrency(t.amount)}
-                    </p>
-                    <button class="text-gray-400 hover:text-red-500 transition-colors delete-btn p-1" data-id="${t.id}" title="Excluir Transação">
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                            <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 10-2 0v6a1 1 0 102 0V8z" clip-rule="evenodd" />
-                        </svg>
-                    </button>
-                </div>
-            `;
-            transactionsList.appendChild(item);
-        });
-
-        calculateBalance(filteredTransactions);
-
+        if (expenses.length === 0) {
+            expenseTransactionsList.innerHTML = '<p class="text-center text-gray-500 py-2">Nenhuma despesa registrada neste mês.</p>';
+        } else {
+            expenses.forEach(t => expenseTransactionsList.appendChild(createTransactionItem(t)));
+        }
+        
+        // Adiciona listeners de delete para todas as transações recém-renderizadas
         document.querySelectorAll('.delete-btn').forEach(button => {
             button.addEventListener('click', (e) => {
                 const docId = e.currentTarget.getAttribute('data-id');
@@ -547,9 +574,11 @@
                 });
             });
         });
+
+        calculateBalance(filteredTransactions);
     };
     
-    // --- 5. RENDERIZAÇÃO METAS ---
+    // --- 5. RENDERIZAÇÃO METAS (Nenhuma mudança necessária aqui) ---
 
     // Renderiza a lista de metas
     const renderGoals = (goals) => {
@@ -623,20 +652,29 @@
         submitBtn.innerHTML = `Adicionando...`;
         
         try {
+            // Calcula a data baseada no MÊS/ANO atualmente exibido (sem mudar o dia, mas fixando no mês)
+            const transactionDate = new Date(
+                currentDisplayDate.getFullYear(), 
+                currentDisplayDate.getMonth(), 
+                15 // Dia 15 é arbitrário, apenas garante que o mês/ano estejam corretos
+            ).toISOString().split('T')[0];
+            
             const newTransaction = {
-                id: crypto.randomUUID(), // Gera um ID único local
+                id: crypto.randomUUID(), 
                 description: data.description,
                 amount: parseFloat(data.amount), 
                 type: data.type,
                 category: data.category || (data.type === 'income' ? 'Receita' : 'Outros'),
-                timestamp: new Date().toISOString() // Salva como string ISO
+                date: transactionDate // Usa o mês/ano do display atual
             };
 
             allData.transactions.push(newTransaction);
-            saveData(); // Salva no localStorage
+            saveData(); 
             
-            closeTransactionModal(); // Fecha o modal após o sucesso
+            closeTransactionModal(); 
             showToast('Transação adicionada!');
+            // Não há mais necessidade de navegar para o mês, pois já estamos nele.
+
 
         } catch (error) {
             console.error("Erro ao adicionar transação:", error);
@@ -795,6 +833,7 @@
             amount: document.getElementById('amount').value.trim(),
             type: typeSelect.value,
             category: categorySelect.value,
+            // A data agora é determinada pelo mês atual no JS, então não é capturada aqui.
         };
 
         if (data.type === 'expense' && !data.category) {
@@ -831,16 +870,12 @@
     fabButton.addEventListener('click', openTransactionModal);
     closeModalBtn.addEventListener('click', closeTransactionModal);
 
-    // *** NOVO CÓDIGO: Impede o fechamento ao clicar no fundo (Regra do Usuário) ***
+    // Bloqueia clique no fundo do modal para forçar o uso do botão 'X'
     transactionModal.addEventListener('click', (e) => {
-        // Se o elemento clicado for EXATAMENTE a div do modal (o fundo escuro), 
-        // nós bloqueamos a ação para garantir que só feche pelo botão "X".
         if (e.target === transactionModal) {
-            // Não faz nada, evitando o comportamento padrão de fechar no clique externo.
-            console.log("Clique no fundo do modal bloqueado para forçar o uso do botão 'X'.");
+            // Ignora o clique no fundo
         }
     });
-    // **************************************************************************
     
     // Inicialização ao carregar a janela
     window.onload = function() {
